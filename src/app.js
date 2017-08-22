@@ -1,6 +1,6 @@
 import Bot from './bot';
 
-export default function ({ mainRoom, email, password }) {
+export default function ({mainRoom, email, password}) {
 	const bot = new Bot(mainRoom);
 	bot.auth(email, password)
 		.then(() => bot.connect())

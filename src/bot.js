@@ -1,9 +1,9 @@
-import { EventEmitter } from 'events';
-import { stringify } from 'querystring';
+import {EventEmitter} from 'events';
+import {stringify} from 'querystring';
 
 import Promise from 'bluebird';
 import WS from 'ws';
-import { jar } from 'request';
+import {jar} from 'request';
 import request from 'request-promise';
 import cheerio from 'cheerio';
 
@@ -50,7 +50,7 @@ class Bot extends EventEmitter {
         });
     }
     createWsConnection(roomid, fkey) {
-        const form = stringify({ roomid, fkey });
+        const form = stringify({roomid, fkey});
         return request({
             method: 'POST',
             uri: `${BASE_URL}/ws-auth`,
@@ -64,7 +64,7 @@ class Bot extends EventEmitter {
             }
         })
         .then(body => JSON.parse(body).url)
-        .then(wsAddress => new WS(`${wsAddress}?l=99999999999`, { origin: BASE_URL }));
+        .then(wsAddress => new WS(`${wsAddress}?l=99999999999`, {origin: BASE_URL}));
     }
     listen(roomid) {
         if(!this.fkey) {
@@ -78,11 +78,10 @@ class Bot extends EventEmitter {
             this.ws = ws;
             this.ws.on('error', error => this.emit('error', error));
             this.ws.on('message', (message, flags) => {
-                const data = JSON.parse(message);
-                console.log(data);
-                for(let room of Object.entries(data)) {
-                    if(room.e && (room.t != room.d)) {
-                        room.e.forEach(event => this.emit('event', event));
+                const json = JSON.parse(message);
+                for(let [room, data] of Object.entries(json)) {
+                    if(data.e && (data.t != data.d)) {
+                        data.e.forEach(event => this.emit('event', {room, event}));
                     }
                 }
             });
@@ -144,14 +143,15 @@ class Bot extends EventEmitter {
             roomid = this.mainRoom;
         }
         const path = `/chats/${roomid}/messages/new`;
-        return this.apiRequest(path, { text }).then(data => data.id);
+        return this.apiRequest(path, {text}).then(data => data.id);
     }
     edit(text, messageId) {
         const path = `/messages/${messageId}`;
-        return this.apiRequest(path, { text });
+        return this.apiRequest(path, {text});
     }
-    handleEvent(event) {
-        console.log(event);
+    handleEvent({room, data}) {
+        console.log(room);
+        console.log(data);
     }
 }
 
