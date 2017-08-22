@@ -80,8 +80,10 @@ class Bot extends EventEmitter {
             this.ws.on('message', (message, flags) => {
                 const json = JSON.parse(message);
                 for(let [room, data] of Object.entries(json)) {
-                    if(data.e && (data.t != data.d)) {
-                        data.e.forEach(event => this.emit('event', {room, event}));
+                    if(data.e && Array.isArray(data.e) && (data.t != data.d)) {
+                        data.e.forEach(event => {
+                            this.emit('event', {room, event})
+                        });
                     }
                 }
             });
@@ -149,9 +151,9 @@ class Bot extends EventEmitter {
         const path = `/messages/${messageId}`;
         return this.apiRequest(path, {text});
     }
-    handleEvent({room, data}) {
+    handleEvent({room, event}) {
         console.log(room);
-        console.log(data);
+        console.log(event);
     }
 }
 
