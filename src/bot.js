@@ -151,7 +151,7 @@ class Bot extends EventEmitter {
         return this.apiRequest(path, { text });
     }
     handleEvent(event) {
-        
+        console.log(event);
     }
 }
 
