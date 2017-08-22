@@ -1,9 +1,9 @@
-const {EventEmitter} = require('events');
-const {stringify} = require('querystring');
+const { EventEmitter } = require('events');
+const { stringify } = require('querystring');
 
 const Promise = require('bluebird');
 const WS = require('ws');
-const {jar} = require('request');
+const { jar } = require('request');
 const request = require('request-promise');
 const cheerio = require('cheerio');
 
@@ -15,9 +15,8 @@ class Bot extends EventEmitter {
         Object.assign(this, {
             mainRoom,
             jar: jar(),
-            ws: null,
             fkey: null,
-            rooms: new Set()
+            rooms: {}
         });
     }
     async auth(email, password) {
@@ -49,13 +48,13 @@ class Bot extends EventEmitter {
         return body;
     }
     async createWsConnection(roomid, fkey) {
-        const form = stringify({roomid, fkey});
+        const form = stringify({ roomid, fkey });
         const body = await request({
             method: 'POST',
             uri: `${BASE_URL}/ws-auth`,
             jar: this.jar,
             body: form,
-            headers: { 
+            headers: {
                 Origin: BASE_URL,
                 Referer: `${BASE_URL}/rooms/${roomid}`,
                 'Content-Length': form.length,
@@ -63,67 +62,63 @@ class Bot extends EventEmitter {
             }
         });
         const wsAddress = JSON.parse(body).url;
-        return new WS(`${wsAddress}?l=99999999999`, {origin: BASE_URL});
+        return new WS(`${wsAddress}?l=99999999999`, { origin: BASE_URL });
     }
-    async listen(roomid) {
-        if(!this.fkey) {
+    async join(roomid = null) {
+        if (!this.fkey) {
             throw new Error('Not connected');
         }
-        if(!roomid) {
+        if (!roomid) {
             roomid = this.mainRoom;
         }
-        this.rooms.add(roomid);
-        this.ws = await this.createWsConnection(roomid, this.fkey);
-        this.ws.on('error', error => this.emit('error', error));
-        this.ws.on('message', (message, flags) => {
+        if (this.rooms[roomid]) {
+            throw new Error(`Already joined room ${roomid}`);
+        }
+        const ws = await this.createWsConnection(roomid, this.fkey);
+        this.rooms[roomid] = ws;
+        ws.on('error', error => this.emit('error', error));
+        ws.on('message', (message, flags) => {
             const json = JSON.parse(message);
-            for(let [room, data] of Object.entries(json)) {
-                if(data.e && Array.isArray(data.e) && (data.t != data.d)) {
+            for (let [room, data] of Object.entries(json)) {
+                if (data.e && Array.isArray(data.e) && (data.t != data.d)) {
                     data.e.forEach(event => {
-                        this.emit('event', {room, event})
+                        this.emit('event', { room, event })
                     });
                 }
             }
         });
-        this.ws.once('open', () => {
-            this.emit('open');
+        ws.once('open', () => {
+            this.emit('room-open', roomid);
         });
     }
-    async join(roomid) {
-        if(this.rooms.has(roomid)) {
-            throw new Error(`Already joined room ${roomid}`);
-        }
-        this.rooms.add(roomid);
-        const ws = await this.createWsConnection(roomid, this.fkey);
-        // TODO: implement rooms, for now just close the connection because it's not supported
-        ws.on('open', () => ws.close());
-    }
-    leaveAll() {
-        if(!this.fkey) {
+    async leave(roomid = 'all') {
+        if (!this.fkey) {
             throw new Error('Not connected');
+        }
+        if (!this.rooms[roomid]) {
+            throw new Error(`Not connected to room ${roomid}`);
+        }
+        if (roomid === 'all') {
+            for (const ws of Object.values(this.rooms)) {
+                if (ws && ws.readyState !== WS.CLOSED) {
+                    ws.close();
+                }
+            }
+        } else {
+            const ws = this.rooms[roomid];
+            if (ws && ws.readyState !== WS.CLOSED) {
+                ws.close();
+            }
         }
         return request({
             method: 'POST',
-            uri: `${BASE_URL}/chats/leave/all`,
+            uri: `${BASE_URL}/chats/leave/${roomid}`,
             jar: this.jar,
             form: {
                 quiet: true,
                 fkey: this.fkey
             }
         });
-    }
-    quit(leave = false) {
-        if(this.ws && this.ws.readyState !== WS.CLOSED) {
-            this.ws.close();
-        }
-        if(this.fkey) {
-            if(leave) {
-                return this.leaveAll().then(() => this.emit('close'));
-            } else {
-                this.emit('close');
-                return Promise.resolve();
-            }
-        }
     }
     async apiRequest(path, form) {
         const response = await request({
@@ -134,17 +129,17 @@ class Bot extends EventEmitter {
         return (response && response.length) ? JSON.parse(response) : {};
     }
     send(text, roomid) {
-        if(!roomid) {
+        if (!roomid) {
             roomid = this.mainRoom;
         }
         const path = `/chats/${roomid}/messages/new`;
-        return this.apiRequest(path, {text}).then(data => data.id);
+        return this.apiRequest(path, { text }).then(data => data.id);
     }
     edit(text, messageId) {
         const path = `/messages/${messageId}`;
-        return this.apiRequest(path, {text});
+        return this.apiRequest(path, { text });
     }
-    handleEvent({room, event}) {
+    handleEvent({ room, event }) {
         console.log(room);
         console.log(event);
     }
