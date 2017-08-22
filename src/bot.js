@@ -20,38 +20,37 @@ class Bot extends EventEmitter {
             rooms: new Set()
         });
     }
-    auth(email, password) {
-        return request({
+    async auth(email, password) {
+        const body = await request({
             method: 'GET',
             uri: 'https://stackoverflow.com/users/login',
             jar: this.jar
-        }).then(body => {
-            const $ = cheerio.load(body);
-            const fkey = $('input[name="fkey"]').val();
-            return request({
-                method: 'POST',
-                uri: 'https://stackoverflow.com/users/login',
-                jar: this.jar,
-                followAllRedirects: true,
-                form: {
-                    email, password, fkey
-                }
-            });
+        });
+        const $ = cheerio.load(body);
+        const fkey = $('input[name="fkey"]').val();
+        return request({
+            method: 'POST',
+            uri: 'https://stackoverflow.com/users/login',
+            jar: this.jar,
+            followAllRedirects: true,
+            form: {
+                email, password, fkey
+            }
         });
     }
-    connect() {
-        return request({
+    async connect() {
+        const body = await request({
             method: 'GET',
             uri: BASE_URL,
             jar: this.jar
-        }).then(body => {
-            const $ = cheerio.load(body);
-            this.fkey = $('input[name="fkey"]').val();
         });
+        const $ = cheerio.load(body);
+        this.fkey = $('input[name="fkey"]').val();
+        return body;
     }
-    createWsConnection(roomid, fkey) {
+    async createWsConnection(roomid, fkey) {
         const form = stringify({roomid, fkey});
-        return request({
+        const body = await request({
             method: 'POST',
             uri: `${BASE_URL}/ws-auth`,
             jar: this.jar,
@@ -62,11 +61,11 @@ class Bot extends EventEmitter {
                 'Content-Length': form.length,
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
-        })
-        .then(body => JSON.parse(body).url)
-        .then(wsAddress => new WS(`${wsAddress}?l=99999999999`, {origin: BASE_URL}));
+        });
+        const wsAddress = JSON.parse(body).url;
+        return new WS(`${wsAddress}?l=99999999999`, {origin: BASE_URL});
     }
-    listen(roomid) {
+    async listen(roomid) {
         if(!this.fkey) {
             throw new Error('Not connected');
         }
@@ -74,35 +73,30 @@ class Bot extends EventEmitter {
             roomid = this.mainRoom;
         }
         this.rooms.add(roomid);
-        return this.createWsConnection(roomid, this.fkey).then(ws => {
-            this.ws = ws;
-            this.ws.on('error', error => this.emit('error', error));
-            this.ws.on('message', (message, flags) => {
-                const json = JSON.parse(message);
-                for(let [room, data] of Object.entries(json)) {
-                    if(data.e && Array.isArray(data.e) && (data.t != data.d)) {
-                        data.e.forEach(event => {
-                            this.emit('event', {room, event})
-                        });
-                    }
+        this.ws = await this.createWsConnection(roomid, this.fkey);
+        this.ws.on('error', error => this.emit('error', error));
+        this.ws.on('message', (message, flags) => {
+            const json = JSON.parse(message);
+            for(let [room, data] of Object.entries(json)) {
+                if(data.e && Array.isArray(data.e) && (data.t != data.d)) {
+                    data.e.forEach(event => {
+                        this.emit('event', {room, event})
+                    });
                 }
-            });
-            return new Promise(resolve => {
-                this.ws.once('open', () => {
-                    this.emit('open');
-                    resolve();
-                });
-            });
+            }
+        });
+        this.ws.once('open', () => {
+            this.emit('open');
         });
     }
-    join(roomid) {
+    async join(roomid) {
         if(this.rooms.has(roomid)) {
             throw new Error(`Already joined room ${roomid}`);
         }
         this.rooms.add(roomid);
-        return this.createWsConnection(roomid, this.fkey).then(ws => {
-            ws.on('open', () => ws.close());
-        });
+        const ws = await this.createWsConnection(roomid, this.fkey);
+        // TODO: implement rooms, for now just close the connection because it's not supported
+        ws.on('open', () => ws.close());
     }
     leaveAll() {
         if(!this.fkey) {
@@ -131,14 +125,13 @@ class Bot extends EventEmitter {
             }
         }
     }
-    apiRequest(path, form) {
-        return request({
+    async apiRequest(path, form) {
+        const response = await request({
             method: 'POST',
             uri: `${BASE_URL}/${path}`,
             form
-        }).then(response => {
-            return (response && response.length) ? JSON.parse(response) : {};
         });
+        return (response && response.length) ? JSON.parse(response) : {};
     }
     send(text, roomid) {
         if(!roomid) {
