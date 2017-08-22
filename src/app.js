@@ -1,5 +1,4 @@
 import Bot from './bot';
-import auth from './auth';
 
 export default function ({ mainRoom, email, password }) {
 	const bot = new Bot(mainRoom);
