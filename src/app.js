@@ -1,11 +1,14 @@
-import Bot from './bot';
+const Bot = require('./bot');
 
-export default function ({mainRoom, email, password}) {
+module.exports = async ({mainRoom, email, password}) => {
 	const bot = new Bot(mainRoom);
-	bot.auth(email, password)
-		.then(() => bot.connect())
-		.then(() => bot.listen())
-		.catch(error => console.trace(error));
+	try {
+		await bot.auth(email, password);
+		await bot.connect();
+		await bot.listen();
+	} catch(error) {
+		console.trace(error);
+	}
 
 	process.on('SIGINT', () => bot.quit(false));
 

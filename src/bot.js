@@ -1,11 +1,11 @@
-import {EventEmitter} from 'events';
-import {stringify} from 'querystring';
+const {EventEmitter} = require('events');
+const {stringify} = require('querystring');
 
-import Promise from 'bluebird';
-import WS from 'ws';
-import {jar} from 'request';
-import request from 'request-promise';
-import cheerio from 'cheerio';
+const Promise = require('bluebird');
+const WS = require('ws');
+const {jar} = require('request');
+const request = require('request-promise');
+const cheerio = require('cheerio');
 
 const BASE_URL = 'https://chat.stackoverflow.com';
 
@@ -157,4 +157,4 @@ class Bot extends EventEmitter {
     }
 }
 
-export default Bot;
+module.exports = Bot;
