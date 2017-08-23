@@ -1,14 +1,15 @@
-const { EventEmitter } = require('events');
-const { stringify } = require('querystring');
 
-const Promise = require('bluebird');
-const WS = require('ws');
-const { jar } = require('request');
-const request = require('request-promise');
-const cheerio = require('cheerio');
+import { EventEmitter } from 'events';
+import { stringify } from 'querystring';
 
-const logger = require('./logger');
-const commands = require('./commands');
+import * as Bluebird from 'bluebird';
+import * as WS from 'ws';
+import { jar } from 'request';
+import * as request from 'request-promise';
+import * as cheerio from 'cheerio';
+
+import { logger } from './logger';
+import commands from './commands';
 
 const BASE_URL = 'https://chat.stackoverflow.com';
 
@@ -41,20 +42,38 @@ const EVENT_MAP = {
     "34": "UserNameOrAvatarChanged"    
 };
 
-class Bot extends EventEmitter {
-    constructor({ mainRoom, email, password, trigger}) {
-        super(EventEmitter);
-        Object.assign(this, {
-            mainRoom,
-            email,
-            password,
-            trigger,
-            logger,
-            jar: jar(),
-            fkey: null,
-            ws: null,
-            rooms: {}
-        });
+type WSMessage = {
+    data: {
+        e: any[]; //todo
+        t: any; // todo
+        d: any; // todo
+    }
+}
+
+interface BotConfig {
+    mainRoom: number;
+    email: string;
+    password: string;
+    trigger: string;
+}
+
+export class Bot extends EventEmitter {
+    private logger = logger;
+    private jar = jar();
+    private fkey: string;
+    private ws: WS;
+    private rooms = {};
+    private mainRoom: number;
+    private email: string;
+    private password: string;
+    private trigger: string;
+
+    constructor(config: BotConfig) {
+        super();
+        this.mainRoom = config.mainRoom;
+        this.email = config.email;
+        this.password = config.password;
+        this.trigger = config.trigger;
     }
     async auth() {
         this.logger.debug(`Authenticating with email ${this.email}`);
@@ -89,7 +108,7 @@ class Bot extends EventEmitter {
         this.logger.debug(`Setting bot fkey to ${this.fkey}`);
         return body;
     }
-    async createWsConnection(roomid, fkey) {
+    async createWsConnection(roomid: number, fkey: string) {
         this.logger.debug(`Getting WS URL for room ${roomid}`);
         const form = stringify({ roomid, fkey });
         const body = await request({
@@ -107,8 +126,8 @@ class Bot extends EventEmitter {
         const wsAddress = JSON.parse(body).url;
         return new WS(`${wsAddress}?l=99999999999`, { origin: BASE_URL });
     }
-    async join(roomid = null) {
-        const originalRoom = roomid === null;
+    async join(roomid?: number) {
+        const originalRoom = roomid === undefined;
         if (!this.fkey) {
             throw new Error('Not connected');
         }
@@ -121,8 +140,8 @@ class Bot extends EventEmitter {
             ws.on('message', () => ws.close());
         } else {
             ws.on('error', error => this.emit('error', error));
-            ws.on('message', (message, flags) => {
-                const json = JSON.parse(message);
+            ws.on('message', (message) => {
+                const json = JSON.parse(message.toString()) as WSMessage;
                 for (let [room, data] of Object.entries(json)) {
                     if (data.e && Array.isArray(data.e) && (data.t != data.d)) {
                         data.e.forEach(event => {
@@ -133,7 +152,7 @@ class Bot extends EventEmitter {
             });
             this.ws = ws;
         }
-        return new Promise(resolve => {
+        return new Bluebird(resolve => {
             ws.once('open', () => {
                 this.logger.debug(`Connected to room ${roomid}`);
                 resolve();
@@ -155,7 +174,7 @@ class Bot extends EventEmitter {
             }
         });
     }
-    async apiRequest(path, form) {
+    async apiRequest(path: string, form: { [key: string]: string }) {
         const uri = `${BASE_URL}/${path}`;
         this.logger.debug({
             uri,
@@ -170,7 +189,7 @@ class Bot extends EventEmitter {
         });
         return (response && response.length) ? JSON.parse(response) : {};
     }
-    send(text, roomid) {
+    send(text: string, roomid: number) {
         if (!roomid) {
             roomid = this.mainRoom;
         }
@@ -181,29 +200,32 @@ class Bot extends EventEmitter {
             fkey: this.fkey
         }).then(data => data.id);
     }
-    edit(text, messageId) {
+    edit(text: string, messageId: number) {
         const path = `messages/${messageId}`;
         return this.apiRequest(path, {
             text,
             fkey: this.fkey
         });
     }
-    handleEvent(event) {
+    handleEvent(event: any /* todo */) {
         this.logger.debug(event);
         if(event.event_type === 1) {
             // temporary
-            const matched = event.content.replace('&quot;', '"').match(new RegExp(`([^\\s"]+)|"([^"]*)"`, 'g'));
+            const matched = splitByUnquotedSpaces(event.content.replace('&quot;', '"'));
             this.logger.debug(matched);
             if(matched) {
                 const [command, ...args] = matched;
+                if (!command.startsWith(this.trigger)) { return; }
                 const commandWithoutTrigger = command.replace(this.trigger, '');
                 if(typeof commands[commandWithoutTrigger] === 'function') {
                     this.logger.debug(`Matched command ${command} with args ${args.join(' ')}`);
-                    commands[commandWithoutTrigger].call(this, { args, event }, (text, room = event.room_id) => this.send(text, room));
+                    commands[commandWithoutTrigger].call(this, { args, event }, (text: string, room = event.room_id) => this.send(text, room));
                 }
             }
         }
     }
 }
 
-module.exports = Bot;
+function splitByUnquotedSpaces(str: string) {
+    return str.match(/([^\s"]+)|"([^"]*)"/g);
+}

@@ -1,7 +1,11 @@
-const request = require('request-promise');
-const cheerio = require('cheerio');
+import * as request from 'request-promise';
+import * as cheerio from 'cheerio';
 
-module.exports = {
+type Event = any; // todo
+
+type Command = ({ args, event }: { args: string[], event: Event }, reply: (message: string) => void) => void;
+
+export default {
     echo({ args, event }, reply) {
         reply(args.join(' '));
     },
@@ -17,4 +21,4 @@ module.exports = {
         const result = `:${event.message_id} MDN: ${results.slice(0, 5).join(', ')}`;
         reply(result);
     }
-};
+} as { [key: string]: Command };

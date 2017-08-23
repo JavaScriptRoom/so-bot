@@ -1,6 +1,6 @@
-const bunyan = require('bunyan');
+import * as bunyan from 'bunyan';
 
-const log = bunyan.createLogger({
+export const logger = bunyan.createLogger({
     name: 'sobot',
     streams: [
         {
@@ -16,5 +16,3 @@ const log = bunyan.createLogger({
         }
     ]
 });
-
-module.exports = log;

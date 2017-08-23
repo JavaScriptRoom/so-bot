@@ -1,12 +1,12 @@
-const Bot = require('./bot');
+import { Bot } from './bot';
 
-module.exports = async (config) => {
+export default async (config: any) => {
 	const bot = new Bot(config);
 	try {
 		await bot.auth();
 		await bot.connect();
 		await bot.join();
-		await bot.join('152531');
+		await bot.join(152531);
 	} catch (error) {
 		console.trace(error);
 	}

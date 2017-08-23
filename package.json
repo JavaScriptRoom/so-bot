@@ -5,6 +5,9 @@
   "main": "index.js",
   "author": "Ben Fortune",
   "license": "MIT",
+  "scripts": {
+    "start": "ts-node index.ts"
+  },
   "dependencies": {
     "bluebird": "^3.4.6",
     "bunyan": "^1.8.12",
@@ -13,5 +16,15 @@
     "request-promise": "^4.1.1",
     "ws": "^1.1.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/bluebird": "^3.5.8",
+    "@types/bunyan": "^1.8.2",
+    "@types/cheerio": "^0.22.2",
+    "@types/node": "^8.0.24",
+    "@types/request": "^2.0.2",
+    "@types/request-promise": "^4.1.37",
+    "@types/ws": "^3.0.2",
+    "ts-node": "^3.3.0",
+    "typescript": "^2.4.2"
+  }
 }
