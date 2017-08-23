@@ -16,6 +16,7 @@ class Bot extends EventEmitter {
             mainRoom,
             jar: jar(),
             fkey: null,
+            ws: null,
             rooms: {}
         });
     }
@@ -65,50 +66,37 @@ class Bot extends EventEmitter {
         return new WS(`${wsAddress}?l=99999999999`, { origin: BASE_URL });
     }
     async join(roomid = null) {
+        const originalRoom = roomid !== null;
         if (!this.fkey) {
             throw new Error('Not connected');
         }
         if (!roomid) {
             roomid = this.mainRoom;
         }
-        if (this.rooms[roomid]) {
-            throw new Error(`Already joined room ${roomid}`);
-        }
         const ws = await this.createWsConnection(roomid, this.fkey);
-        this.rooms[roomid] = ws;
-        ws.on('error', error => this.emit('error', error));
-        ws.on('message', (message, flags) => {
-            const json = JSON.parse(message);
-            for (let [room, data] of Object.entries(json)) {
-                if (data.e && Array.isArray(data.e) && (data.t != data.d)) {
-                    data.e.forEach(event => {
-                        this.emit('event', { room, event })
-                    });
+        if(originalRoom) {
+            ws.on('message', () => ws.close());
+        } else {
+            ws.on('error', error => this.emit('error', error));
+            ws.on('message', (message, flags) => {
+                const json = JSON.parse(message);
+                for (let [room, data] of Object.entries(json)) {
+                    if (data.e && Array.isArray(data.e) && (data.t != data.d)) {
+                        data.e.forEach(event => {
+                            this.emit('event', { room, event })
+                        });
+                    }
                 }
-            }
-        });
-        ws.once('open', () => {
-            this.emit('room-open', roomid);
+            });
+            this.ws = ws;
+        }
+        return new Promise(resolve => {
+            ws.once('open', resolve);
         });
     }
     async leave(roomid = 'all') {
         if (!this.fkey) {
             throw new Error('Not connected');
-        }
-        if (!this.rooms[roomid]) {
-            throw new Error(`Not connected to room ${roomid}`);
-        }
-        if (roomid === 'all') {
-            for (const ws of Object.values(this.rooms)) {
-                if (ws && ws.readyState !== WS.CLOSED) {
-                    ws.close();
-                }
-            }
-        } else {
-            const ws = this.rooms[roomid];
-            if (ws && ws.readyState !== WS.CLOSED) {
-                ws.close();
-            }
         }
         return request({
             method: 'POST',
@@ -124,6 +112,7 @@ class Bot extends EventEmitter {
         const response = await request({
             method: 'POST',
             uri: `${BASE_URL}/${path}`,
+            jar: this.jar,
             form
         });
         return (response && response.length) ? JSON.parse(response) : {};
@@ -132,12 +121,18 @@ class Bot extends EventEmitter {
         if (!roomid) {
             roomid = this.mainRoom;
         }
-        const path = `/chats/${roomid}/messages/new`;
-        return this.apiRequest(path, { text }).then(data => data.id);
+        const path = `chats/${roomid}/messages/new`;
+        return this.apiRequest(path, {
+            text,
+            fkey: this.fkey
+        }).then(data => data.id);
     }
     edit(text, messageId) {
-        const path = `/messages/${messageId}`;
-        return this.apiRequest(path, { text });
+        const path = `messages/${messageId}`;
+        return this.apiRequest(path, {
+            text,
+            fkey: this.fkey
+        });
     }
     handleEvent({ room, event }) {
         console.log(room);
