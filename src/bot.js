@@ -66,7 +66,7 @@ class Bot extends EventEmitter {
         return new WS(`${wsAddress}?l=99999999999`, { origin: BASE_URL });
     }
     async join(roomid = null) {
-        const originalRoom = roomid !== null;
+        const originalRoom = roomid === null;
         if (!this.fkey) {
             throw new Error('Not connected');
         }
@@ -74,7 +74,7 @@ class Bot extends EventEmitter {
             roomid = this.mainRoom;
         }
         const ws = await this.createWsConnection(roomid, this.fkey);
-        if(originalRoom) {
+        if(!originalRoom) {
             ws.on('message', () => ws.close());
         } else {
             ws.on('error', error => this.emit('error', error));
