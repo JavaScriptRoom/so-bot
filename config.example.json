@@ -1,5 +1,6 @@
 {
 	"email": "",
 	"password": "",
-	"mainRoom": "17"
+	"mainRoom": "17",
+	"trigger": "."
 }
