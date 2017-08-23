@@ -1,9 +1,9 @@
 const Bot = require('./bot');
 
-module.exports = async ({ mainRoom, email, password }) => {
-	const bot = new Bot(mainRoom);
+module.exports = async (config) => {
+	const bot = new Bot(config);
 	try {
-		await bot.auth(email, password);
+		await bot.auth();
 		await bot.connect();
 		await bot.join();
 		await bot.join('152531');
