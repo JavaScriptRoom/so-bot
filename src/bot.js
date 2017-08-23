@@ -11,6 +11,8 @@ const logger = require('./logger');
 const commands = require('./commands');
 
 const BASE_URL = 'https://chat.stackoverflow.com';
+
+// Thanks anal greg, https://github.com/awalgarg/sochatbot/blob/master/sechatapi/eventmaps.json
 const EVENT_MAP = {
     "1": "MessagePosted",
     "2": "MessageEdited",
